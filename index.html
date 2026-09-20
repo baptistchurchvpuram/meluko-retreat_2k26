@@ -320,6 +320,13 @@ details.acc[open] summary::after{transform:rotate(45deg)}
 .file-btn input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
 .hint{font-family:var(--hand);font-size:17px;color:#4a3a2a;margin-top:6px}
 .pay-box{background:#faf8f2;border:2px solid var(--ink);padding:14px 14px 12px;margin-top:8px}
+.copyupi{background:var(--paper);cursor:pointer;font-family:var(--display)}
+.paytrouble{margin-top:10px;border-top:2px dashed rgba(30,28,31,.25)}
+.paytrouble summary{cursor:pointer;list-style:none;font-family:var(--display);font-size:18px;color:var(--ink);padding:10px 24px 8px 0;position:relative}
+.paytrouble summary::-webkit-details-marker{display:none}
+.paytrouble summary::after{content:"+";position:absolute;right:2px;top:4px;font-size:26px;color:var(--orange)}
+.paytrouble[open] summary::after{content:"\2013"}
+.paytrouble p{font-family:var(--body);font-size:16px;line-height:1.5;color:#3a332c;margin:0 0 8px}
 .pay-apps{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0 4px}
 .payapp{
   font-family:var(--display); font-size:17px; letter-spacing:.02em; text-align:center; text-decoration:none;
@@ -327,6 +334,7 @@ details.acc[open] summary::after{transform:rotate(45deg)}
   transition:transform .14s, background .14s;
 }
 .payapp:last-child{background:var(--paper)}
+.payapp.copyupi{background:var(--paper)}
 .payapp:active{transform:scale(.96)}
 @media (hover:hover){.payapp:hover{background:var(--orange);transform:translateY(-2px)}}
 .pay-box .qr{width:min(230px,70%);height:auto;margin:6px auto 10px;display:block;background:#fff;padding:8px}
@@ -654,16 +662,26 @@ details.acc[open] summary::after{transform:rotate(45deg)}
       ['Paytm',      'paytmmp://pay?' + upiQs],
       ['Any UPI app','upi://pay?' + upiQs]
     ];
-    const payBtns = '<div class="pay-apps">' + payApps.map(a =>
-      '<a class="payapp" href="' + a[1] + '">' + esc(a[0]) + '</a>').join('') + '</div>';
+    const payBtns =
+      '<button class="btn ghost" type="button" id="f-payopen" style="margin-top:10px">PAY \u20B9' + fee(c.id) + ' WITH UPI</button>' +
+      '<div class="pay-apps" id="f-payapps" hidden>' +
+        '<p class="hint" style="grid-column:1/-1;margin:2px 0 0">Choose your app</p>' +
+        payApps.map(a => '<a class="payapp" href="' + a[1] + '">' + esc(a[0]) + '</a>').join('') +
+      '</div>';
     const pay = CONFIG.UPI_ID
       ? '<div class="pay-box">' +
         '<div class="hint" style="margin:0 0 6px">Scan to pay \u20B9' + fee(c.id) + ' with any UPI app</div>' +
         (CONFIG.UPI_QR ? '<img class="qr" src="' + CONFIG.UPI_QR + '" alt="UPI QR code for ' + esc(CONFIG.UPI_NAME) + '">' : '') +
         '<div class="upi">' + esc(CONFIG.UPI_ID) + '</div>' +
         '<div class="hint">' + esc(CONFIG.UPI_NAME) + '</div>' +
-        '<div class="hint" style="margin-top:10px">Or pay \u20B9' + fee(c.id) + ' straight from your app:</div>' + payBtns +
+        '<button class="payapp copyupi" type="button" id="f-copy" style="width:100%;margin-top:8px">COPY UPI ID</button>' +
+        payBtns +
         (CONFIG.PAY_NOTE ? '<div class="hint">' + esc(CONFIG.PAY_NOTE) + '</div>' : '') +
+        '<details class="paytrouble"><summary>App says \u20B92,000 QR limit?</summary>' +
+        '<p>Some apps cap payments made from a scanned or shared QR. Pay to the UPI ID instead:</p>' +
+        '<p>1. Copy the UPI ID above.<br>2. Open PhonePe, GPay or Paytm and choose <b>Pay to UPI ID</b> (in PhonePe: To Mobile or UPI ID).<br>' +
+        '3. Paste the ID, enter \u20B9' + fee(c.id) + ' and pay.</p>' +
+        '<p>Scanning the QR live with the app\u2019s camera also avoids that cap.</p></details>' +
         '</div>'
       : '<div class="pay-box"><div class="hint" style="margin:0">Payment details will be shown here.</div></div>';
 
@@ -690,6 +708,26 @@ details.acc[open] summary::after{transform:rotate(45deg)}
       proofFile = f;
       lab.className = 'file-btn has';
       lab.firstChild.nodeValue = '\u2713 ' + (f.name.length > 28 ? f.name.slice(0, 25) + '\u2026' : f.name);
+    });
+    const po = $('#f-payopen');
+    if (po) po.addEventListener('click', () => {
+      const box = $('#f-payapps');
+      const open = !box.hidden;
+      box.hidden = open;
+      po.textContent = open ? 'PAY \u20B9' + fee(c.id) + ' WITH UPI' : 'CHOOSE AN APP BELOW';
+      if (!open) box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+    const cp = $('#f-copy');
+    if (cp) cp.addEventListener('click', () => {
+      const done = () => { cp.textContent = '\u2713 UPI ID COPIED'; setTimeout(() => { cp.textContent = 'COPY UPI ID'; }, 2000); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(CONFIG.UPI_ID).then(done, () => { cp.textContent = CONFIG.UPI_ID; });
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = CONFIG.UPI_ID; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) { cp.textContent = CONFIG.UPI_ID; }
+        document.body.removeChild(ta);
+      }
     });
     $('#f-txn').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4); });
     $('#f-submit').addEventListener('click', () => submit(c));
