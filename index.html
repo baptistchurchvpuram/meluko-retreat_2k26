@@ -784,21 +784,34 @@ details.acc[open] summary::after{transform:rotate(45deg)}
     reader.readAsDataURL(proofFile);
   }
 
+  let current = null;
+
+  function go(h, push){
+    h = h || 'home';
+    if (h === current) return;
+    route(h);
+    if (push !== false) {
+      // one history entry per page, so the Android back button steps back
+      try { history.pushState({ view: h }, ''); } catch (e) {}
+    }
+  }
+
   function route(h){
     h = h || 'home';
+    current = h;
     document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
     if (h === 'register') {
       renderRegister();
       $('#register').classList.add('on');
     } else if (h.startsWith('register/')) {
       const c = CONFIG.COMPETITIONS.find(x => x.id === h.slice(9));
-      if (!c) { return route('register'); }
+      if (!c) { current = null; return go('register', false); }
       renderForm(c);
       $('#regform').classList.add('on');
     } else if (h.startsWith('comp/')) {
       const c = CONFIG.COMPETITIONS.find(x => x.id === h.slice(5));
-      if (!c) { return route('register'); }
-      if (!isRegistered(c.id)) { return route('register/' + c.id); }
+      if (!c) { current = null; return go('register', false); }
+      if (!isRegistered(c.id)) { current = null; return go('register/' + c.id, false); }
       $('#comp-title').textContent = c.name.toUpperCase();
       $('#comp .page-sub').textContent = c.subtitle || 'Rules, then registration';
       let body = '';
@@ -814,7 +827,7 @@ details.acc[open] summary::after{transform:rotate(45deg)}
       $('#comp-body').innerHTML = compCard(c, true) + body + payCard;
       $('#comp').classList.add('on');
     } else if (h === 'rules') {
-      return route('register');          // old link: rules now live on the registration page
+      current = null; return go('register', false);   // old link: rules live on the registration page
     } else {
       $('#home').classList.add('on');
     }
@@ -825,11 +838,20 @@ details.acc[open] summary::after{transform:rotate(45deg)}
     const a = e.target.closest('[data-go]');
     if (!a) return;
     e.preventDefault();
-    route(a.getAttribute('data-go'));
+    go(a.getAttribute('data-go'));
   });
+
+  // Android/browser back button walks back through the pages instead of leaving the site
+  window.addEventListener('popstate', e => {
+    const v = (e.state && e.state.view) || 'home';
+    current = null;
+    route(v);
+  });
+
   let start = 'home';
   try { if (location.hash.length > 1) start = decodeURIComponent(location.hash.slice(1)); } catch (e) {}
   route(start);
+  try { history.replaceState({ view: start }, ''); } catch (e) {}
 })();
 </script>
 </body>
