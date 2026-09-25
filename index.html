@@ -27,14 +27,24 @@ const CONFIG = {
     { id: "singing", name: "Singing",
       highlights: ["3 members per team", "3 minutes per team", "3 instruments provided", "One team per church"],
       rules: [
-        "Minimum Participants: Minimum 3 members per team.",
+        "Minimum Participants: 3 members per team minimum .",
         "Instruments Provided: 3 instruments — Guitar, Keyboard & Drums.",
-        "Song List: To Be Decided (TBD).",
+        "Song List: Choose from the songs listed below.",
         "Church Representation: One team per church.",
         "Time Limit: 3 minutes per team.",
         "Each team must perform within the allotted time."
       ],
-      sections: [] },
+      sections: [
+        { title: "Song List", rules: [
+          "Ibadat Karo",
+          "Ho Tere Stuti Aur Aradhana",
+          "Saari Srishti Ke Malik",
+          "Shukriya",
+          "Dhanyawad Ke Saath",
+          "Neele Asmaan Ke Paar",
+          "Mukti Dilaye Yeshu Naam"
+        ] }
+      ] },
     { id: "quiz", name: "Quiz", subtitle: "Quiz is from the Book of Ephesians",
       highlights: ["Max. 3 participants per team", "One team per church"],
       rules: [
@@ -70,6 +80,10 @@ const CONFIG = {
   // Where registrations are sent (Google Apps Script web app URL).
   // Until this is filled in, the form will not accept submissions.
   REGISTRATION_ENDPOINT: "https://script.google.com/macros/s/AKfycbx0lN0Pw4s_KE8Tfzwd_mUxliST0zKMS_Fc2S63KsAD5A6VUiMRpvL43pdBo5P4xdSq_g/exec",
+
+  // Registrations can be opened/closed from the Google Sheet (MELUKO menu) without
+  // touching this file. Set to false to skip the check and always stay open.
+  CHECK_OPEN_STATUS: true,
 
   // true = a competition's rules only open after its registration is submitted
   LOCK_RULES_UNTIL_REGISTERED: false,
@@ -606,9 +620,30 @@ details.acc[open] summary::after{transform:rotate(45deg)}
   };
   const fee = id => CONFIG.FEES[id];
 
+  /* ---------- open / closed (controlled from the sheet) ---------- */
+  let OPEN = true, CLOSED_MSG = 'Registrations are closed.';
+
+  function closedCard(){
+    return '<div class="paper-wrap"><article class="paper"><h3>REGISTRATIONS CLOSED</h3>' +
+      '<p class="paytext">' + esc(CLOSED_MSG) + '</p></article></div>';
+  }
+
+  function checkOpen(){
+    if (!CONFIG.CHECK_OPEN_STATUS || !CONFIG.REGISTRATION_ENDPOINT) return;
+    const url = CONFIG.REGISTRATION_ENDPOINT + (CONFIG.REGISTRATION_ENDPOINT.indexOf('?') < 0 ? '?' : '&') + 'status=1';
+    fetch(url).then(r => r.json()).then(s => {
+      if (s && s.open === false) {
+        OPEN = false;
+        if (s.message) CLOSED_MSG = s.message;
+        if (current === 'register' || String(current).indexOf('register/') === 0) route(current);
+      }
+    }).catch(() => {});      // offline or blocked: leave it open
+  }
+
   /* ---------- registration: competition choice ---------- */
   function renderRegister(){
     $('#reg-rules').innerHTML = CONFIG.REGISTRATION_RULES.map(r => '<li>' + esc(r) + '</li>').join('');
+    if (!OPEN) { $('#fee-cards').innerHTML = closedCard(); return; }
     $('#fee-cards').innerHTML = CONFIG.COMPETITIONS.map(c => {
       return '<div class="fee"><div class="paper-wrap"><article class="paper">' +
         '<h3>' + esc(c.name).toUpperCase() + '</h3>' +
@@ -624,6 +659,13 @@ details.acc[open] summary::after{transform:rotate(45deg)}
 
   function renderForm(c){
     proofFile = null;
+    if (!OPEN) {
+      $('#rf-title').textContent = c.name.toUpperCase();
+      $('#rf-fee').textContent = '';
+      $('#rf-card').innerHTML = '<h3>REGISTRATIONS CLOSED</h3><p class="paytext">' + esc(CLOSED_MSG) + '</p>' +
+        '<a class="btn ghost" href="#" data-go="comp/' + esc(c.id) + '">BACK TO RULES</a>';
+      return;
+    }
     $('#rf-title').textContent = c.name.toUpperCase();
     $('#rf-fee').textContent = 'Registration fee \u20B9' + fee(c.id) + ' per church';
     const payLink = (CONFIG.PAYMENT_LINKS || {})[c.id] || '';
@@ -817,7 +859,7 @@ details.acc[open] summary::after{transform:rotate(45deg)}
       let body = '';
       if (CONFIG.GENERAL_RULES.length)
         body += '<div class="paper-wrap"><article class="paper"><h3>GENERAL RULES</h3>' + list(CONFIG.GENERAL_RULES) + '</article></div>';
-      const payCard =
+      const payCard = !OPEN ? closedCard() :
         '<div class="paper-wrap"><article class="paper">' +
           '<h3>REGISTER</h3>' +
           '<div><span class="amount">\u20B9' + fee(c.id) + '</span><span class="per">per church</span></div>' +
@@ -852,6 +894,7 @@ details.acc[open] summary::after{transform:rotate(45deg)}
   try { if (location.hash.length > 1) start = decodeURIComponent(location.hash.slice(1)); } catch (e) {}
   route(start);
   try { history.replaceState({ view: start }, ''); } catch (e) {}
+  checkOpen();
 })();
 </script>
 </body>
